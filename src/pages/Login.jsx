@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import { BaseURL } from "../api/constants";
 
 const Login = ({ setToken }) => {
   const [email, setEmail] = useState('');
@@ -8,7 +9,7 @@ const Login = ({ setToken }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const url = isRegister ? 'http://localhost:5000/api/auth/register' : 'http://localhost:5000/api/auth/login';
+    const url = isRegister ? `${BaseURL}/api/auth/register` : `${BaseURL}/api/auth/login`;
     try {
       const { data } = await axios.post(url, { email, password });
       if (!isRegister) {

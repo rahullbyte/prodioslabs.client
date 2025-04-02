@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { useEffect, useState } from "react";
+import axios from "axios";
 import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import TaskCard from '../components/TaskCard';
-import TaskForm from '../components/TaskForm';
-import ListEditForm from '../components/ListEditForm';
-import SortableTaskCard from '../components/SortableTaskCard';
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from "@dnd-kit/core";
+import TaskForm from "../components/TaskForm";
+import ListEditForm from "../components/ListEditForm";
+import { BaseURL } from "../api/constants";
 
 const KanbanBoard = ({ token }) => {
   const [board, setBoard] = useState(null);
-  const [newListTitle, setNewListTitle] = useState('');
+  const [newListTitle, setNewListTitle] = useState("");
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isListEditModalOpen, setIsListEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -24,24 +26,25 @@ const KanbanBoard = ({ token }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Minimum drag distance before activation
+        distance: 8,
       },
     })
   );
 
   useEffect(() => {
     fetchBoard();
+    // eslint-disable-next-line
   }, []);
 
   const fetchBoard = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get('http://localhost:5000/api/board', {
+      const { data } = await axios.get(`${BaseURL}/api/board`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBoard(data);
     } catch (error) {
-      console.error('Error fetching board:', error);
+      console.error("Error fetching board:", error);
     } finally {
       setLoading(false);
     }
@@ -52,14 +55,14 @@ const KanbanBoard = ({ token }) => {
     try {
       setLoading(true);
       const { data } = await axios.post(
-        'http://localhost:5000/api/board/list',
+        `${BaseURL}/api/board/list`,
         { title: newListTitle },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setBoard({ ...board, lists: [...board.lists, data] });
-      setNewListTitle('');
+      setNewListTitle("");
     } catch (error) {
-      console.error('Error adding list:', error);
+      console.error("Error adding list:", error);
     } finally {
       setLoading(false);
     }
@@ -69,16 +72,18 @@ const KanbanBoard = ({ token }) => {
     try {
       setLoading(true);
       await axios.put(
-        `http://localhost:5000/api/board/list/${listId}`,
+        `${BaseURL}/api/board/list/${listId}`,
         { title: newTitle },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setBoard({
         ...board,
-        lists: board.lists.map((list) => (list._id === listId ? { ...list, title: newTitle } : list)),
+        lists: board.lists.map((list) =>
+          list._id === listId ? { ...list, title: newTitle } : list
+        ),
       });
     } catch (error) {
-      console.error('Error updating list:', error);
+      console.error("Error updating list:", error);
     } finally {
       setLoading(false);
     }
@@ -87,7 +92,7 @@ const KanbanBoard = ({ token }) => {
   const deleteList = async (listId) => {
     try {
       setLoading(true);
-      await axios.delete(`http://localhost:5000/api/board/list/${listId}`, {
+      await axios.delete(`${BaseURL}/api/board/list/${listId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBoard({
@@ -95,7 +100,7 @@ const KanbanBoard = ({ token }) => {
         lists: board.lists.filter((list) => list._id !== listId),
       });
     } catch (error) {
-      console.error('Error deleting list:', error);
+      console.error("Error deleting list:", error);
     } finally {
       setLoading(false);
     }
@@ -106,47 +111,39 @@ const KanbanBoard = ({ token }) => {
     try {
       setLoading(true);
       if (taskData._id) {
-        // Edit existing task
         const { data } = await axios.put(
-          `http://localhost:5000/api/board/task/${taskData._id}`,
+          `${BaseURL}/api/board/task/${taskData._id}`,
           { ...taskData, listId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        
-        // Update both the source list and any other list that might have the task
+
         const updatedLists = board.lists.map((list) => {
-          // Check if this list has the task we're updating
-          const hasTask = list.tasks.some(t => t._id === data._id);
-          
+          const hasTask = list.tasks.some((t) => t._id === data._id);
+
           if (list._id === listId) {
-            // This is the target list
             if (hasTask) {
-              // Task is already in this list, update it
               return {
                 ...list,
                 tasks: list.tasks.map((t) => (t._id === data._id ? data : t)),
               };
             } else {
-              // Task is not in this list yet, add it
               return { ...list, tasks: [...list.tasks, data] };
             }
           } else if (hasTask) {
-            // Task is in this list but shouldn't be anymore, remove it
             return {
               ...list,
               tasks: list.tasks.filter((t) => t._id !== data._id),
             };
           }
-          
-          // List is not affected
+
           return list;
         });
-        
+
         setBoard({ ...board, lists: updatedLists });
       } else {
         // Add new task
         const { data } = await axios.post(
-          'http://localhost:5000/api/board/task',
+          `${BaseURL}/api/board/task`,
           { ...taskData, listId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -156,7 +153,7 @@ const KanbanBoard = ({ token }) => {
         setBoard({ ...board, lists: updatedLists });
       }
     } catch (error) {
-      console.error('Error saving task:', error);
+      console.error("Error saving task:", error);
     } finally {
       setLoading(false);
     }
@@ -165,7 +162,7 @@ const KanbanBoard = ({ token }) => {
   const deleteTask = async (taskId) => {
     try {
       setLoading(true);
-      await axios.delete(`http://localhost:5000/api/board/task/${taskId}`, {
+      await axios.delete(`${BaseURL}/api/board/task/${taskId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const updatedLists = board.lists.map((list) => ({
@@ -174,7 +171,7 @@ const KanbanBoard = ({ token }) => {
       }));
       setBoard({ ...board, lists: updatedLists });
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error("Error deleting task:", error);
     } finally {
       setLoading(false);
     }
@@ -184,46 +181,42 @@ const KanbanBoard = ({ token }) => {
     setActiveId(event.active.id);
   };
 
-  const handleDragOver = (event) => {
-    // Placeholder for potential drag over effects
+  const handleDragOver = () => {
+
   };
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     setActiveId(null);
-    
+
     if (!active || !over || active.id === over.id) return;
 
     try {
       setLoading(true);
       const taskId = active.id;
-      
-      // Find the source list and task
+
       let sourceListId = null;
       let sourceTaskIndex = -1;
-      
-      // Find which list contains the task we're dragging
+
       for (const list of board.lists) {
-        const index = list.tasks.findIndex(task => task._id === taskId);
+        const index = list.tasks.findIndex((task) => task._id === taskId);
         if (index !== -1) {
           sourceListId = list._id;
           sourceTaskIndex = index;
           break;
         }
       }
-      
-      if (sourceTaskIndex === -1) return; // Task not found
-      
-      // Determine destination - it could be over another task or over a list
+
+      if (sourceTaskIndex === -1) return;
+
       let destinationListId = null;
       let destinationIndex = 0;
-      
-      // First check if over.id belongs to a task
+
       let overTask = null;
       let overListId = null;
-      
+
       for (const list of board.lists) {
-        const taskIndex = list.tasks.findIndex(task => task._id === over.id);
+        const taskIndex = list.tasks.findIndex((task) => task._id === over.id);
         if (taskIndex !== -1) {
           overTask = list.tasks[taskIndex];
           overListId = list._id;
@@ -231,65 +224,56 @@ const KanbanBoard = ({ token }) => {
           break;
         }
       }
-      
-      // If we found a task, set the destination list to that task's list
+
       if (overTask) {
         destinationListId = overListId;
       } else {
-        // Otherwise, check if over.id is a list ID
-        const listIndex = board.lists.findIndex(list => list._id === over.id);
+        const listIndex = board.lists.findIndex((list) => list._id === over.id);
         if (listIndex !== -1) {
           destinationListId = over.id;
-          destinationIndex = board.lists[listIndex].tasks.length; // Place at end of the list
+          destinationIndex = board.lists[listIndex].tasks.length;
         }
       }
-      
-      if (!destinationListId) return; // No valid destination found
-      
-      // Find the task being moved
-      const sourceList = board.lists.find(list => list._id === sourceListId);
+
+      if (!destinationListId) return;
+
+      const sourceList = board.lists.find((list) => list._id === sourceListId);
       const taskToMove = { ...sourceList.tasks[sourceTaskIndex] };
-      
-      // Update local state first for immediate feedback
-      const updatedLists = board.lists.map(list => {
-        // Remove from source list
+
+      const updatedLists = board.lists.map((list) => {
+
         if (list._id === sourceListId) {
           return {
             ...list,
-            tasks: list.tasks.filter((_, index) => index !== sourceTaskIndex)
+            tasks: list.tasks.filter((_, index) => index !== sourceTaskIndex),
           };
         }
-        
-        // Add to destination list
+
         if (list._id === destinationListId) {
           const newTasks = [...list.tasks];
           newTasks.splice(destinationIndex, 0, taskToMove);
           return {
             ...list,
-            tasks: newTasks
+            tasks: newTasks,
           };
         }
-        
+
         return list;
       });
-      
+
       setBoard({ ...board, lists: updatedLists });
-      
-      // Update on the server
+
       if (sourceListId !== destinationListId) {
-        // If moving between lists, update the task's listId
         await axios.put(
-          `http://localhost:5000/api/board/task/${taskId}`,
+          `${BaseURL}/api/board/task/${taskId}`,
           { listId: destinationListId },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
-      
-      // To ensure consistency, refresh the board from the server
+
       await fetchBoard();
     } catch (error) {
-      console.error('Error during drag and drop:', error);
-      // Revert to previous state by refetching the board
+      console.error("Error during drag and drop:", error);
       fetchBoard();
     } finally {
       setLoading(false);
@@ -298,11 +282,10 @@ const KanbanBoard = ({ token }) => {
 
   if (!board) return <div className="p-4 text-center">Loading...</div>;
 
-  // Find the active task if there is one
   let activeTask = null;
   if (activeId) {
     for (const list of board.lists) {
-      const task = list.tasks.find(task => task._id === activeId);
+      const task = list.tasks.find((task) => task._id === activeId);
       if (task) {
         activeTask = task;
         break;
@@ -326,27 +309,29 @@ const KanbanBoard = ({ token }) => {
             disabled={loading}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Adding...' : 'Add List'}
+            {loading ? "Adding..." : "Add List"}
           </button>
         </div>
       </div>
 
-      <DndContext 
-        sensors={sensors} 
-        collisionDetection={closestCenter} 
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="flex space-x-6 overflow-x-auto pb-4">
           {board.lists.map((list) => (
-            <div 
-              key={list._id} 
+            <div
+              key={list._id}
               id={list._id}
               className="bg-gray-100 p-4 rounded-lg w-80 shrink-0 shadow-sm"
             >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">{list.title}</h2>
+                <h2 className="text-xl font-semibold text-gray-800">
+                  {list.title}
+                </h2>
                 <div className="flex space-x-2">
                   <button
                     onClick={() => {
@@ -369,21 +354,20 @@ const KanbanBoard = ({ token }) => {
               </div>
               <SortableContext
                 items={list.tasks.map((t) => t._id)}
-                strategy={verticalListSortingStrategy}
+              // strategy={verticalListSortingStrategy}
               >
-               {list.tasks.map((task) => (
-  <SortableTaskCard
-    key={task._id}
-    task={task}
-    onEdit={(task) => {
-      setEditingTask(task);
-      setSelectedListId(list._id);
-      setIsTaskModalOpen(true);
-    }}
-    onDelete={deleteTask}
-  />
-))}
-
+                {list.tasks.map((task) => (
+                  <SortableTaskCard
+                    key={task._id}
+                    task={task}
+                    onEdit={(task) => {
+                      setEditingTask(task);
+                      setSelectedListId(list._id);
+                      setIsTaskModalOpen(true);
+                    }}
+                    onDelete={deleteTask}
+                  />
+                ))}
               </SortableContext>
               <button
                 onClick={() => {
@@ -399,15 +383,19 @@ const KanbanBoard = ({ token }) => {
             </div>
           ))}
         </div>
-        
+
         {/* Drag Overlay */}
         <DragOverlay>
           {activeTask ? (
             <div className="p-3 mb-2 rounded shadow-md bg-white border-l-4 border-blue-500 opacity-80">
               <div className="flex justify-between items-start">
-                <h3 className="font-medium text-gray-800">{activeTask.title}</h3>
+                <h3 className="font-medium text-gray-800">
+                  {activeTask.title}
+                </h3>
               </div>
-              <p className="text-sm text-gray-600 mt-1">{activeTask.description}</p>
+              <p className="text-sm text-gray-600 mt-1">
+                {activeTask.description}
+              </p>
             </div>
           ) : null}
         </DragOverlay>
@@ -432,7 +420,7 @@ const KanbanBoard = ({ token }) => {
         onSubmit={(newTitle) => editList(editingList._id, newTitle)}
         initialTitle={editingList?.title}
       />
-      
+
       {loading && (
         <div className="fixed bottom-4 right-4 bg-blue-500 text-white px-3 py-2 rounded-md shadow-md">
           Saving changes...
