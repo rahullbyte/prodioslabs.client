@@ -6,18 +6,21 @@ const Login = ({ setToken }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const url = isRegister ? `${BaseURL}/api/auth/register` : `${BaseURL}/api/auth/login`;
     try {
       const { data } = await axios.post(url, { email, password });
-      if (!isRegister) {
+      if (isRegister) {
+        setMessage("Registration successful! You can now log in.");
+      } else {
         localStorage.setItem('token', data.token);
         setToken(data.token);
       }
     } catch (error) {
-      console.error(error);
+      setMessage(error.response?.data?.message || "An error occurred.");
     }
   };
 
@@ -25,6 +28,7 @@ const Login = ({ setToken }) => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded shadow-md w-96">
         <h2 className="text-2xl font-bold mb-6">{isRegister ? 'Register' : 'Login'}</h2>
+        {message && <p className="mb-4 text-green-600 text-center">{message}</p>}
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <input
@@ -52,7 +56,10 @@ const Login = ({ setToken }) => {
           {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
           <span
             className="text-blue-500 cursor-pointer"
-            onClick={() => setIsRegister(!isRegister)}
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setMessage('');
+            }}
           >
             {isRegister ? 'Login' : 'Register'}
           </span>

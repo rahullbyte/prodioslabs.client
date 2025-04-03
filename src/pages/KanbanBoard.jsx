@@ -11,6 +11,9 @@ import {
 import TaskForm from "../components/TaskForm";
 import ListEditForm from "../components/ListEditForm";
 import { BaseURL } from "../api/constants";
+import SortableTaskCard from "../components/SortableTaskCard"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
 
 const KanbanBoard = ({ token }) => {
   const [board, setBoard] = useState(null);
@@ -181,104 +184,99 @@ const KanbanBoard = ({ token }) => {
     setActiveId(event.active.id);
   };
 
-  const handleDragOver = () => {
+  const handleDragOver = (event) => {
+    const { active, over } = event;
+    if (!active || !over || active.id === over.id) return;
+  
+    const activeTaskId = active.id;
+    let sourceListId = null;
+    let destinationListId = over.id;
+  
+    for (const list of board.lists) {
+      if (list.tasks.some(task => task._id === activeTaskId)) {
+        sourceListId = list._id;
+        break;
+      }
+    }
+  
+    if (!board.lists.find(list => list._id === over.id)) {
+      for (const list of board.lists) {
+        if (list.tasks.some(task => task._id === over.id)) {
+          destinationListId = list._id;
+          break;
+        }
+      }
+    }
+  
+    if (!sourceListId || !destinationListId || sourceListId === destinationListId) return;
 
-  };
+    setBoard((prevBoard) => {
+      const updatedLists = prevBoard.lists.map(list => {
+        if (list._id === sourceListId) {
+          return { ...list, tasks: list.tasks.filter(task => task._id !== activeTaskId) };
+        }
+        if (list._id === destinationListId) {
+          return { ...list, tasks: [...list.tasks, active.data.current] };
+        }
+        return list;
+      });
+  
+      return { ...prevBoard, lists: updatedLists };
+    });
+  };  
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     setActiveId(null);
-
+  
     if (!active || !over || active.id === over.id) return;
-
-    try {
-      setLoading(true);
-      const taskId = active.id;
-
-      let sourceListId = null;
-      let sourceTaskIndex = -1;
-
-      for (const list of board.lists) {
-        const index = list.tasks.findIndex((task) => task._id === taskId);
-        if (index !== -1) {
-          sourceListId = list._id;
-          sourceTaskIndex = index;
-          break;
-        }
+  
+    const activeTaskId = active.id;
+    let sourceListId = null;
+    let destinationListId = over.id;
+  
+    for (const list of board.lists) {
+      if (list.tasks.some(task => task._id === activeTaskId)) {
+        sourceListId = list._id;
+        break;
       }
-
-      if (sourceTaskIndex === -1) return;
-
-      let destinationListId = null;
-      let destinationIndex = 0;
-
-      let overTask = null;
-      let overListId = null;
-
-      for (const list of board.lists) {
-        const taskIndex = list.tasks.findIndex((task) => task._id === over.id);
-        if (taskIndex !== -1) {
-          overTask = list.tasks[taskIndex];
-          overListId = list._id;
-          destinationIndex = taskIndex;
-          break;
-        }
+    }
+  
+    for (const list of board.lists) {
+      if (list._id === over.id || list.tasks.some(task => task._id === over.id)) {
+        destinationListId = list._id;
+        break;
       }
-
-      if (overTask) {
-        destinationListId = overListId;
-      } else {
-        const listIndex = board.lists.findIndex((list) => list._id === over.id);
-        if (listIndex !== -1) {
-          destinationListId = over.id;
-          destinationIndex = board.lists[listIndex].tasks.length;
-        }
-      }
-
-      if (!destinationListId) return;
-
-      const sourceList = board.lists.find((list) => list._id === sourceListId);
-      const taskToMove = { ...sourceList.tasks[sourceTaskIndex] };
-
-      const updatedLists = board.lists.map((list) => {
-
+    }
+  
+    if (!sourceListId || !destinationListId || sourceListId === destinationListId) return;
+  
+    setBoard(prevBoard => {
+      const updatedLists = prevBoard.lists.map(list => {
         if (list._id === sourceListId) {
-          return {
-            ...list,
-            tasks: list.tasks.filter((_, index) => index !== sourceTaskIndex),
-          };
+          return { ...list, tasks: list.tasks.filter(task => task._id !== activeTaskId) };
         }
-
         if (list._id === destinationListId) {
-          const newTasks = [...list.tasks];
-          newTasks.splice(destinationIndex, 0, taskToMove);
-          return {
-            ...list,
-            tasks: newTasks,
-          };
+          return { ...list, tasks: [...list.tasks, active.data.current] };
         }
-
         return list;
       });
+  
+      return { ...prevBoard, lists: updatedLists };
+    });
 
-      setBoard({ ...board, lists: updatedLists });
-
-      if (sourceListId !== destinationListId) {
-        await axios.put(
-          `${BaseURL}/api/board/task/${taskId}`,
-          { listId: destinationListId },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
-
-      await fetchBoard();
+    try {
+      await axios.put(
+        `${BaseURL}/api/board/task/${activeTaskId}`,
+        { listId: destinationListId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
     } catch (error) {
-      console.error("Error during drag and drop:", error);
+      console.error("Error moving task:", error);
       fetchBoard();
-    } finally {
-      setLoading(false);
     }
-  };
+  };  
+  
 
   if (!board) return <div className="p-4 text-center">Loading...</div>;
 
@@ -354,7 +352,7 @@ const KanbanBoard = ({ token }) => {
               </div>
               <SortableContext
                 items={list.tasks.map((t) => t._id)}
-              // strategy={verticalListSortingStrategy}
+              strategy={verticalListSortingStrategy}
               >
                 {list.tasks.map((task) => (
                   <SortableTaskCard
@@ -369,6 +367,12 @@ const KanbanBoard = ({ token }) => {
                   />
                 ))}
               </SortableContext>
+              <SortableContext items={list.tasks.map(t => t._id)} strategy={verticalListSortingStrategy}>
+  {list.tasks.map(task => (
+    <SortableTaskCard key={task._id} task={task} />
+  ))}
+</SortableContext>
+
               <button
                 onClick={() => {
                   setSelectedListId(list._id);
